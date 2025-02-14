@@ -1,0 +1,1025 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Analyzer AI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/flyon@latest/dist/flyon.min.css" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    maxWidth: {
+                        '8xl': '88rem',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+        
+        * {
+            font-family: 'Inter', sans-serif;
+        }
+        
+        :root {
+            --sidebar-width: 320px;
+            --chat-max-width: 48rem;
+            --chat-width: 48rem;
+        }
+        
+        body {
+            background-color: #f8fafc;
+        }
+        
+        body.dark {
+            background-color: #111827;
+            color: #e5e7eb;
+        }
+        
+        .main-container {
+            display: flex;
+            min-height: 100vh;
+            background: #f9fafb;
+        }
+
+        .dark .main-container {
+            background: #111827;
+        }
+
+        .sidebar {
+            width: var(--sidebar-width);
+            flex-shrink: 0;
+            border-right: 1px solid #e5e7eb;
+            background: white;
+            padding: 1rem;
+            height: 100vh;
+            position: fixed;
+            overflow-y: auto;
+            z-index: 40;
+        }
+
+        .dark .sidebar {
+            background: #1f2937;
+            border-color: #374151;
+        }
+
+        .main-content {
+            flex: 1;
+            margin-left: var(--sidebar-width);
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        .messages-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem;
+            padding-bottom: calc(80px + 2rem);
+            width: 100%;
+            max-width: var(--chat-max-width);
+            margin: 0 auto;
+            scrollbar-width: thin;
+            scrollbar-color: transparent transparent;
+            transition: scrollbar-color 0.3s ease;
+        }
+
+        .messages-container:hover {
+            scrollbar-color: #cbd5e1 transparent;
+        }
+
+        .dark .messages-container:hover {
+            scrollbar-color: #4b5563 transparent;
+        }
+
+        .messages-container::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .messages-container::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .messages-container::-webkit-scrollbar-thumb {
+            background-color: #cbd5e1;
+            border-radius: 4px;
+            border: 2px solid transparent;
+            background-clip: padding-box;
+        }
+
+        .messages-container::-webkit-scrollbar-thumb:hover {
+            background-color: #94a3b8;
+        }
+
+        .dark .messages-container::-webkit-scrollbar-thumb {
+            background-color: #4b5563;
+        }
+
+        .dark .messages-container::-webkit-scrollbar-thumb:hover {
+            background-color: #6b7280;
+        }
+
+        .input-area {
+            position: fixed;
+            bottom: 0;
+            left: var(--sidebar-width);
+            right: 0;
+            background: white;
+            border-top: 1px solid #e5e7eb;
+            padding: 1rem;
+            z-index: 50;
+        }
+
+        .dark .input-area {
+            background: #1f2937;
+            border-color: #374151;
+        }
+
+        .input-container {
+            max-width: var(--chat-max-width);
+            margin: 0 auto;
+            padding: 0 1rem;
+            position: relative;
+        }
+
+        .chat-container {
+            display: flex;
+            flex-direction: column;
+            max-width: var(--chat-width);
+            margin: 0 auto;
+            padding-bottom: calc(80px + 2rem); /* Height of input area + padding */
+            min-height: 100vh;
+            position: relative;
+        }
+
+        .settings-area {
+            background: white;
+            border-bottom: 1px solid #e2e8f0;
+            padding: 1rem;
+            width: 100%;
+        }
+        
+        .dark .settings-area {
+            background: #1f2937;
+            border-color: #374151;
+        }
+        
+        .chat-area {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem 0;
+            width: 100%;
+            max-width: var(--chat-width);
+            margin: 0 auto;
+        }
+        
+        .message-group {
+            padding: 1rem;
+            max-width: 48rem;
+            margin: 0 auto;
+        }
+        
+        .message {
+            max-width: 85%;
+            padding: 1rem 1.25rem;
+            border-radius: 1.5rem;
+            line-height: 1.5;
+            position: relative;
+            animation: fadeIn 0.3s ease-out;
+            margin-bottom: 0.5rem;
+        }
+        
+        .user-message {
+            background: #3b82f6;
+            color: white;
+            margin-left: auto;
+            border-bottom-right-radius: 0.25rem;
+            box-shadow: 0 2px 4px rgba(59, 130, 246, 0.1);
+        }
+        
+        .dark .user-message {
+            background: #4f46e5;
+        }
+        
+        .user-message::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            right: -0.5rem;
+            width: 1rem;
+            height: 1rem;
+            background: inherit;
+            clip-path: polygon(0 0, 0% 100%, 100% 100%);
+        }
+        
+        .ai-message {
+            background: white;
+            color: #1f2937;
+            margin-right: auto;
+            border-bottom-left-radius: 0.25rem;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+        
+        .dark .ai-message {
+            background: #374151;
+            color: #e5e7eb;
+        }
+        
+        .ai-message::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: -0.5rem;
+            width: 1rem;
+            height: 1rem;
+            background: inherit;
+            clip-path: polygon(100% 0, 0 100%, 100% 100%);
+        }
+        
+        .system-message {
+            background: #10b981;
+            color: white;
+            margin: 0 auto;
+            text-align: center;
+            border-radius: 1rem;
+            font-weight: 500;
+            max-width: 85%;
+        }
+        
+        .dark .system-message {
+            background: #059669;
+        }
+        
+        .error-message {
+            background: #ef4444;
+            color: white;
+            margin: 0 auto;
+            text-align: center;
+            border-radius: 1rem;
+            font-weight: 500;
+            max-width: 85%;
+        }
+        
+        .dark .error-message {
+            color: #f87171;
+        }
+        
+        .loading-bubble {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 1rem 1.25rem;
+            background: #f3f4f6;
+            color: #6b7280;
+            margin-right: auto;
+            border-radius: 1.5rem;
+            border-bottom-left-radius: 0.25rem;
+            max-width: 85%;
+            position: relative;
+            animation: fadeIn 0.3s ease-out;
+        }
+        
+        .dark .loading-bubble {
+            background: #374151;
+            color: #9ca3af;
+        }
+        
+        .loading-bubble::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: -0.5rem;
+            width: 1rem;
+            height: 1rem;
+            background: inherit;
+            clip-path: polygon(100% 0, 0 100%, 100% 100%);
+        }
+        
+        .loading-dots {
+            display: flex;
+            gap: 0.25rem;
+        }
+        
+        .loading-dots span {
+            width: 0.5rem;
+            height: 0.5rem;
+            background: currentColor;
+            border-radius: 50%;
+            animation: bounce 1.4s infinite ease-in-out;
+            opacity: 0.6;
+        }
+        
+        .loading-dots span:nth-child(1) {
+            animation-delay: -0.32s;
+        }
+        
+        .loading-dots span:nth-child(2) {
+            animation-delay: -0.16s;
+        }
+        
+        @keyframes bounce {
+            0%, 80%, 100% { transform: scale(0); }
+            40% { transform: scale(1); }
+        }
+        
+        .input-container textarea {
+            min-height: 24px;
+            max-height: 200px;
+            padding: 12px 45px 12px 16px;
+            resize: none;
+            overflow-y: hidden;
+            width: 100%;
+            border-radius: 0.75rem;
+            border: 1px solid #e5e7eb;
+            background: white;
+            color: #1f2937;
+            font-size: 0.875rem;
+            line-height: 1.5;
+            transition: all 0.2s;
+        }
+        
+        .dark .input-container textarea {
+            background: #374151;
+            border-color: #4b5563;
+            color: #e5e7eb;
+        }
+        
+        .input-container textarea:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+        
+        .dark .input-container textarea:focus {
+            border-color: #60a5fa;
+            box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.1);
+        }
+        
+        .input-container textarea:disabled {
+            background: #f3f4f6;
+            cursor: not-allowed;
+        }
+        
+        .dark .input-container textarea:disabled {
+            background: #1f2937;
+        }
+        
+        .input-buttons {
+            position: absolute;
+            right: 8px;
+            bottom: 8px;
+            display: flex;
+            gap: 0.5rem;
+        }
+        
+        .input-buttons button {
+            padding: 6px;
+            border-radius: 6px;
+            background: transparent;
+            color: #6b7280;
+            transition: all 0.2s;
+        }
+        
+        .input-buttons button:hover:not(:disabled) {
+            background: #f3f4f6;
+            color: #374151;
+        }
+        
+        .dark .input-buttons button:hover:not(:disabled) {
+            background: #4b5563;
+            color: #e5e7eb;
+        }
+        
+        .input-buttons button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .input-buttons button svg {
+            width: 20px;
+            height: 20px;
+        }
+        
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 24px;
+        }
+        
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #e5e7eb;
+            transition: .4s;
+            border-radius: 24px;
+        }
+        
+        .dark .toggle-slider {
+            background-color: #4b5563;
+        }
+        
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        
+        input:checked + .toggle-slider {
+            background-color: #3b82f6;
+        }
+        
+        .dark input:checked + .toggle-slider {
+            background-color: #60a5fa;
+        }
+        
+        input:checked + .toggle-slider:before {
+            transform: translateX(20px);
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .table-wrapper {
+            margin: 1.5rem 0;
+            background: white;
+            border-radius: 0.75rem;
+            overflow-x: auto;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+        
+        .dark .table-wrapper {
+            background: #374151;
+            border-color: #4b5563;
+        }
+        
+        .custom-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            font-size: 0.875rem;
+            line-height: 1.5;
+        }
+        
+        .custom-table th {
+            background: #f1f5f9;
+            color: #1e293b;
+            font-weight: 600;
+            text-align: left;
+            padding: 1rem;
+            border-bottom: 2px solid #e2e8f0;
+            white-space: nowrap;
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+        
+        .dark .custom-table th {
+            background: #374151;
+            color: #e5e7eb;
+        }
+        
+        .custom-table td {
+            padding: 1rem;
+            border-bottom: 1px solid #e2e8f0;
+            color: #475569;
+            vertical-align: top;
+        }
+        
+        .dark .custom-table td {
+            color: #9ca3af;
+        }
+        
+        .custom-table tr:hover td {
+            background: #f8fafc;
+        }
+        
+        .dark .custom-table tr:hover td {
+            background: #4b5563;
+        }
+        
+        .custom-table tr:last-child td {
+            border-bottom: none;
+        }
+        
+        .ai-message pre {
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 0.875rem;
+            line-height: 1.5;
+            background: white;
+            border-radius: 0.75rem;
+            padding: 1.25rem;
+            margin: 1rem 0;
+            overflow-x: auto;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            white-space: pre;
+            tab-size: 4;
+        }
+        
+        .dark .ai-message pre {
+            background: #374151;
+            border-color: #4b5563;
+        }
+        
+        .ai-message pre.ascii-table {
+            white-space: pre;
+            tab-size: 4;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+        }
+        
+        .custom-table td p {
+            margin: 0;
+            padding: 0;
+        }
+        
+        .custom-table td p + p {
+            margin-top: 0.5rem;
+        }
+        
+        .custom-table td ul,
+        .custom-table td ol {
+            margin: 0.5rem 0;
+            padding-left: 1.5rem;
+        }
+        
+        .custom-table td li + li {
+            margin-top: 0.25rem;
+        }
+        
+        .file-drop-area {
+            border: 2px dashed #e2e8f0;
+            border-radius: 0.5rem;
+            padding: 2rem;
+            text-align: center;
+            transition: all 0.2s;
+            background: white;
+        }
+        
+        .dark .file-drop-area {
+            background: #374151;
+        }
+        
+        .file-drop-area.drag-over {
+            border-color: #3b82f6;
+            background: #eff6ff;
+        }
+        
+        .dark .file-drop-area.drag-over {
+            border-color: #4f46e5;
+            background: #4b5563;
+        }
+        
+        .stop-button {
+            background: #ef4444;
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            font-size: 0.875rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .stop-button:hover {
+            background: #dc2626;
+        }
+        
+        .stop-button svg {
+            width: 1rem;
+            height: 1rem;
+        }
+    </style>
+</head>
+<body class="dark">
+    <div class="main-container dark:bg-gray-900">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <!-- File Upload Section -->
+            <div class="mb-6">
+                <h2 class="text-lg font-semibold mb-3 dark:text-gray-200">Upload PDF</h2>
+                <div 
+                    id="dropZone"
+                    class="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-4 text-center cursor-pointer hover:border-blue-500 dark:hover:border-blue-400 transition-colors"
+                >
+                    <input type="file" id="fileInput" class="hidden" accept=".pdf" />
+                    <p class="text-gray-600 dark:text-gray-400">Drag & drop a PDF file here or click to select</p>
+                </div>
+            </div>
+
+            <!-- Settings Section -->
+            <div class="settings-area">
+                <h2 class="text-lg font-semibold mb-3 dark:text-gray-200">Settings</h2>
+                <!-- AI Model Selection -->
+                <div class="setting-item mb-4">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">AI Model</label>
+                    <select id="modelSelect" class="w-full p-2 rounded-md border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200">
+                        <option value="google/gemini-2.0-flash-exp:free">Gemini 2.0 Flash</option>
+                        <option value="google/gemini-2.0-pro-exp-02-05:free">Gemini 2.0 Pro</option>
+                        <option value="deepseek/deepseek-r1-distill-llama-70b:free">DeepSeek Llama 70B</option>
+                        <option value="meta-llama/llama-3.3-70b-instruct:free">Llama 3.3 70B</option>
+                        <option value="mistralai/mistral-7b-instruct:free">Mistral 7B</option>
+                        <option value="cognitivecomputations/dolphin3.0-r1-mistral-24b:free">Dolphin 3.0 R1 24B</option>
+                        <option value="cognitivecomputations/dolphin3.0-mistral-24b:free">Dolphin 3.0 24B</option>
+                    </select>
+                </div>
+
+                <!-- Web Search Toggle -->
+                <div class="setting-item">
+                    <label class="flex items-center justify-between">
+                        <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Enable Web Search</span>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="webSearchToggle">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <div class="messages-container">
+                <div id="chatMessages">
+                    <!-- Messages will be inserted here -->
+                </div>
+            </div>
+
+            <!-- Input Area -->
+            <div class="input-area">
+                <div class="input-container">
+                    <textarea 
+                        id="userInput" 
+                        placeholder="Ask about the PDF... (Press Enter to send, Shift+Enter for new line)" 
+                        rows="1"
+                        disabled
+                    ></textarea>
+                    <div class="input-buttons">
+                        <button id="sendButton" disabled title="Send message">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
+                            </svg>
+                        </button>
+                        <button id="stopButton" class="hidden text-red-500 hover:text-red-600" title="Stop generating">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentController = null;
+            
+        function appendLoadingMessage() {
+            const messageGroup = document.createElement('div');
+            messageGroup.className = 'message-group';
+            messageGroup.innerHTML = `
+                <div class="loading-bubble">
+                    <span>Generating response</span>
+                    <div class="loading-dots">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </div>
+                </div>
+            `;
+            chatMessages.appendChild(messageGroup);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+            return messageGroup;
+        }
+            
+        function setInputState(enabled) {
+            userInput.disabled = !enabled;
+            sendButton.disabled = !enabled;
+            stopButton.classList.toggle('hidden', enabled);
+            sendButton.classList.toggle('hidden', !enabled);
+        }
+            
+        function formatMarkdown(text) {
+            // Bold
+            text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            text = text.replace(/__(.*?)__/g, '<strong>$1</strong>');
+            
+            // Italic
+            text = text.replace(/\*(.*?)\*/g, '<em>$1</em>');
+            text = text.replace(/_(.*?)_/g, '<em>$1</em>');
+            
+            // Underline
+            text = text.replace(/~(.*?)~/g, '<u>$1</u>');
+            
+            // Code blocks
+            text = text.replace(/```(\w+)?\n([\s\S]*?)```/g, function(match, lang, code) {
+                return `<pre class="code-block ${lang || ''}">${code.trim()}</pre>`;
+            });
+            
+            // Inline code
+            text = text.replace(/`([^`]+)`/g, '<code>$1</code>');
+            
+            // Numbered lists
+            text = text.replace(/^\d+\.\s+(.+)$/gm, '<li class="numbered">$1</li>');
+            text = text.replace(/(<li class="numbered">[^<]+<\/li>\n?)+/g, '<ol>$&</ol>');
+            
+            // Bullet lists
+            text = text.replace(/^[-*]\s+(.+)$/gm, '<li class="bullet">$1</li>');
+            text = text.replace(/(<li class="bullet">[^<]+<\/li>\n?)+/g, '<ul>$&</ul>');
+            
+            // Tables
+            if (text.includes('|') && text.includes('-')) {
+                const lines = text.trim().split('\n');
+                let inTable = false;
+                let tableHTML = '';
+                
+                for (let i = 0; i < lines.length; i++) {
+                    const line = lines[i].trim();
+                    
+                    if (line.includes('|')) {
+                        if (!inTable) {
+                            inTable = true;
+                            tableHTML = '<div class="table-wrapper"><table class="custom-table">';
+                        }
+                        
+                        const cells = line.split('|').filter(cell => cell.trim());
+                        const isHeader = i === 0 || (i === 1 && lines[i].includes('-'));
+                        
+                        if (!isHeader || (isHeader && !line.includes('-'))) {
+                            tableHTML += '<tr>';
+                            cells.forEach(cell => {
+                                tableHTML += isHeader ? 
+                                    `<th>${cell.trim()}</th>` : 
+                                    `<td>${formatMarkdown(cell.trim())}</td>`;
+                            });
+                            tableHTML += '</tr>';
+                        }
+                    } else if (inTable) {
+                        inTable = false;
+                        tableHTML += '</table></div>';
+                        text = text.replace(/\|[\s\S]+?\n\n/, tableHTML);
+                    }
+                }
+                
+                if (inTable) {
+                    tableHTML += '</table></div>';
+                    text = text.replace(/\|[\s\S]+$/, tableHTML);
+                }
+            }
+            
+            // Convert newlines to <br> tags
+            text = text.replace(/\n/g, '<br>');
+            
+            return text;
+        }
+
+        function appendMessage(type, content) {
+            const messageGroup = document.createElement('div');
+            messageGroup.className = 'message-group';
+            
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${type}-message`;
+            
+            // Format the content if it's an AI message
+            if (type === 'ai') {
+                messageDiv.innerHTML = formatMarkdown(content);
+            } else {
+                messageDiv.textContent = content;
+            }
+            
+            messageGroup.appendChild(messageDiv);
+            chatMessages.appendChild(messageGroup);
+            scrollToBottom();
+        }
+            
+        function scrollToBottom(smooth = true) {
+            const messagesContainer = document.querySelector('.messages-container');
+            if (messagesContainer) {
+                messagesContainer.scrollTo({
+                    top: messagesContainer.scrollHeight,
+                    behavior: smooth ? 'smooth' : 'auto'
+                });
+            }
+        }
+
+        // File upload handling
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        
+        // Remove any existing event listeners
+        const newFileInput = fileInput.cloneNode(true);
+        fileInput.parentNode.replaceChild(newFileInput, fileInput);
+        
+        // Add event listeners
+        dropZone.addEventListener('click', () => {
+            newFileInput.click();
+        });
+        
+        newFileInput.addEventListener('change', handleFileSelect);
+        
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('border-blue-500', 'dark:border-blue-400');
+        });
+        
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('border-blue-500', 'dark:border-blue-400');
+        });
+        
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('border-blue-500', 'dark:border-blue-400');
+            
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFileUpload(files[0]);
+            }
+        });
+            
+        function handleFileSelect(e) {
+            const file = e.target.files[0];
+            if (file.type === 'application/pdf') {
+                handleFileUpload(file);
+            } else {
+                appendMessage('error', 'Please upload a PDF file.');
+            }
+        }
+            
+        function handleFileUpload(file) {
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            appendMessage('system', 'Uploading PDF...');
+            
+            fetch('/upload', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.filename) {
+                    appendMessage('system', `PDF loaded: ${data.filename}\nExtracted ${data.text_length} characters of text.`);
+                    // Enable chat input
+                    document.getElementById('userInput').disabled = false;
+                    document.getElementById('sendButton').disabled = false;
+                } else {
+                    throw new Error(data.error || 'Failed to process PDF');
+                }
+            })
+            .catch(error => {
+                console.error('Upload error:', error);
+                appendMessage('error', `Error uploading PDF: ${error.message}`);
+            });
+        }
+            
+        async function sendMessage() {
+            const message = userInput.value.trim();
+            if (message) {
+                appendMessage('user', message);
+                scrollToBottom();
+                
+                const loadingMessage = appendLoadingMessage();
+                scrollToBottom();
+                setInputState(false);
+                
+                const modelId = document.getElementById('modelSelect').value;
+                const enableWebSearch = document.getElementById('webSearchToggle').checked;
+                
+                // Create a new AbortController
+                currentController = new AbortController();
+                
+                try {
+                    const response = await fetch('/chat', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            message: message,
+                            model: modelId,
+                            enableWebSearch: enableWebSearch
+                        }),
+                        signal: currentController.signal
+                    });
+                    
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+                    }
+                    
+                    const data = await response.json();
+                    
+                    // Remove loading message
+                    loadingMessage.remove();
+                    
+                    if (data.error) {
+                        throw new Error(typeof data.error === 'object' ? JSON.stringify(data.error) : data.error);
+                    }
+                    appendMessage('ai', data.response || data.choices[0]?.message?.content);
+                    scrollToBottom();
+                } catch (error) {
+                    // Remove loading message
+                    loadingMessage.remove();
+                    
+                    if (error.name === 'AbortError') {
+                        appendMessage('system', 'Generation stopped by user');
+                    } else {
+                        console.error('Chat error:', error);
+                        const errorMessage = typeof error.message === 'object' ? JSON.stringify(error.message) : error.message;
+                        appendMessage('error', `Error: ${errorMessage}`);
+                    }
+                    scrollToBottom();
+                } finally {
+                    currentController = null;
+                    setInputState(true);
+                }
+                
+                userInput.value = '';
+                adjustTextareaHeight();
+            }
+        }
+            
+        document.getElementById('stopButton').addEventListener('click', () => {
+            if (currentController) {
+                currentController.abort();
+            }
+        });
+            
+        const sendButton = document.getElementById('sendButton');
+        sendButton.addEventListener('click', sendMessage);
+            
+        const userInput = document.getElementById('userInput');
+        userInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            } else if (e.key === 'Enter' && e.shiftKey) {
+                // Allow multiline input with Shift+Enter
+                const start = this.selectionStart;
+                const end = this.selectionEnd;
+                const value = this.value;
+                
+                this.value = value.substring(0, start) + '\n' + value.substring(end);
+                this.selectionStart = this.selectionEnd = start + 1;
+                
+                adjustTextareaHeight();
+                e.preventDefault();
+            }
+        });
+            
+        function adjustTextareaHeight(textarea) {
+            textarea.style.height = 'auto';
+            textarea.style.height = (textarea.scrollHeight) + 'px';
+        }
+            
+        userInput.addEventListener('input', function() {
+            adjustTextareaHeight(this);
+        });
+            
+        // Theme toggle
+        function toggleTheme() {
+            document.documentElement.classList.toggle('dark');
+            document.body.classList.toggle('dark');
+        }
+            
+        // Initialize chat input as disabled
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('userInput').disabled = true;
+            document.getElementById('sendButton').disabled = true;
+        });
+    </script>
+</body>
+</html>
