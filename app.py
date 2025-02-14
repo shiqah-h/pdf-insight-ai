@@ -212,31 +212,68 @@ def chat():
         # Combine system message, web context, and user message
         full_message = f"{system_message}{web_context}\n\nUser: {message}\nAssistant:"
 
-        # Make the API call
-        response = requests.post(
-            'https://openrouter.ai/api/v1/chat/completions',
-            headers={
-                'Authorization': f'Bearer {os.getenv("OPENROUTER_API_KEY")}',
-                'HTTP-Referer': 'http://localhost:5000',
-                'X-Title': 'PDF Analyzer'
-            },
-            json={
-                'model': model_id,
-                'messages': [
-                    {'role': 'user', 'content': full_message}
-                ]
-            }
-        )
+        # Check for API key before making the request
+        api_key = os.getenv("OPENROUTER_API_KEY")
+        if not api_key:
+            return jsonify({'error': 'OpenRouter API key is not configured. Please check your .env file.'}), 400
 
-        if response.status_code != 200:
-            error_data = response.json()
-            return jsonify({'error': error_data.get('error', 'API request failed')}), response.status_code
+        try:
+            # Make the API call
+            response = requests.post(
+                'https://openrouter.ai/api/v1/chat/completions',
+                headers={
+                    'Authorization': f'Bearer {api_key}',
+                    'HTTP-Referer': 'http://localhost:5000',
+                    'X-Title': 'PDF Analyzer'
+                },
+                json={
+                    'model': model_id,
+                    'messages': [
+                        {'role': 'user', 'content': full_message}
+                    ]
+                }
+            )
+            
+            # Log the response status and headers for debugging
+            logger.info(f"OpenRouter API Response Status: {response.status_code}")
+            logger.info(f"OpenRouter API Response Headers: {response.headers}")
+            
+            if response.status_code != 200:
+                try:
+                    error_data = response.json()
+                    error_message = error_data.get('error', {}).get('message')
+                    if error_message:
+                        logger.error(f"OpenRouter API Error: {error_message}")
+                        return jsonify({'error': f"OpenRouter API Error: {error_message}"}), response.status_code
+                    else:
+                        logger.error(f"OpenRouter API Error: Status {response.status_code}")
+                        return jsonify({'error': f"OpenRouter API Error: Status {response.status_code}"}), response.status_code
+                except Exception as e:
+                    logger.error(f"Failed to parse error response: {str(e)}")
+                    return jsonify({'error': f'API request failed with status {response.status_code}'}), response.status_code
 
-        response_data = response.json()
-        if 'error' in response_data:
-            return jsonify({'error': response_data['error']}), 400
+            response_data = response.json()
+            logger.info("Successfully received response from OpenRouter API")
+            
+            if 'error' in response_data:
+                error_message = response_data['error'].get('message') if isinstance(response_data['error'], dict) else str(response_data['error'])
+                logger.error(f"Error in response data: {error_message}")
+                return jsonify({'error': error_message}), 400
 
-        return jsonify(response_data)
+            # Extract the assistant's message from the response
+            assistant_message = response_data.get('choices', [{}])[0].get('message', {}).get('content', '')
+            if not assistant_message:
+                logger.error("No response content found in API response")
+                return jsonify({'error': 'No response content found'}), 500
+
+            return jsonify({'response': assistant_message})
+
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Request failed: {str(e)}")
+            return jsonify({'error': f'Failed to connect to OpenRouter API: {str(e)}'}), 500
+        except Exception as e:
+            logger.error(f"Unexpected error: {str(e)}")
+            return jsonify({'error': f'An unexpected error occurred: {str(e)}'}), 500
 
     except Exception as e:
         print(f"Error in chat endpoint: {str(e)}")

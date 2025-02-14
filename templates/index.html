@@ -935,20 +935,20 @@
                         signal: currentController.signal
                     });
                     
-                    if (!response.ok) {
-                        const errorData = await response.json();
-                        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
-                    }
-                    
                     const data = await response.json();
                     
                     // Remove loading message
                     loadingMessage.remove();
                     
-                    if (data.error) {
-                        throw new Error(typeof data.error === 'object' ? JSON.stringify(data.error) : data.error);
+                    if (!response.ok) {
+                        throw new Error(data.error || `HTTP error! status: ${response.status}`);
                     }
-                    appendMessage('ai', data.response || data.choices[0]?.message?.content);
+                    
+                    if (data.error) {
+                        throw new Error(data.error);
+                    }
+                    
+                    appendMessage('ai', data.response);
                     scrollToBottom();
                 } catch (error) {
                     // Remove loading message
@@ -958,8 +958,7 @@
                         appendMessage('system', 'Generation stopped by user');
                     } else {
                         console.error('Chat error:', error);
-                        const errorMessage = typeof error.message === 'object' ? JSON.stringify(error.message) : error.message;
-                        appendMessage('error', `Error: ${errorMessage}`);
+                        appendMessage('error', error.message || 'An unexpected error occurred');
                     }
                     scrollToBottom();
                 } finally {
@@ -968,7 +967,7 @@
                 }
                 
                 userInput.value = '';
-                adjustTextareaHeight();
+                adjustTextareaHeight(userInput);
             }
         }
             
@@ -995,12 +994,13 @@
                 this.value = value.substring(0, start) + '\n' + value.substring(end);
                 this.selectionStart = this.selectionEnd = start + 1;
                 
-                adjustTextareaHeight();
+                adjustTextareaHeight(this);
                 e.preventDefault();
             }
         });
             
         function adjustTextareaHeight(textarea) {
+            if (!textarea) return;
             textarea.style.height = 'auto';
             textarea.style.height = (textarea.scrollHeight) + 'px';
         }
