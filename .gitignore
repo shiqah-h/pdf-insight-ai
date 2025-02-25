@@ -15,3 +15,6 @@ build/
 
 # Environment configuration
 .env
+
+# Add uploads directory to .gitignore
+uploads/

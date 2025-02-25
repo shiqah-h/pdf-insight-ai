@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify, render_template, send_from_directory, g
-from werkzeug.utils import secure_filename
+from flask_cors import CORS
 import os
 import fitz  # PyMuPDF
 import requests
@@ -9,6 +9,8 @@ import re
 import PyPDF2
 import json
 from dotenv import load_dotenv
+import magic
+from werkzeug.utils import secure_filename
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -19,6 +21,14 @@ load_dotenv()
 
 # Create Flask app instance
 app = Flask(__name__)
+CORS(app, resources={
+    r"/api/*": {
+        "origins": ["http://localhost:5000"],
+        "methods": ["GET", "POST"],
+        "allow_headers": ["Content-Type"]
+    }
+})
+
 app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB limit
 
@@ -28,6 +38,27 @@ logger.info(f"Upload directory created/verified at: {app.config['UPLOAD_FOLDER']
 
 # Initialize global variables for stored data
 global_pdf_text = ""
+
+# File upload settings
+ALLOWED_EXTENSIONS = {'pdf'}
+MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+def is_valid_pdf(file_stream):
+    mime = magic.Magic(mime=True)
+    file_type = mime.from_buffer(file_stream.read(2048))
+    file_stream.seek(0)  # Reset file pointer
+    return file_type == 'application/pdf'
+
+@app.after_request
+def add_security_headers(response):
+    response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;"
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'DENY'
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+    return response
 
 # OpenRouter models configuration
 OPENROUTER_MODELS = [
@@ -83,7 +114,7 @@ def perform_web_search(query):
         encoded_query = requests.utils.quote(query)
         search_url = f"https://html.duckduckgo.com/html/?q={encoded_query}"
         
-        response = requests.get(search_url, headers=headers)
+        response = requests.get(search_url, headers=headers, timeout=30)
         response.raise_for_status()
         
         # Use BeautifulSoup to parse the HTML response
@@ -121,7 +152,7 @@ def perform_web_search(query):
         return None
 
 # Endpoint to handle file uploads
-@app.route('/upload', methods=['POST'])
+@app.route('/api/upload', methods=['POST'])
 def upload_file():
     """
     Handle file uploads.
@@ -137,41 +168,49 @@ def upload_file():
         file = request.files['file']
         if file.filename == '':
             return jsonify({'error': 'No selected file'}), 400
+
+        if not allowed_file(file.filename):
+            return jsonify({'error': 'File type not allowed. Only PDF files are accepted.'}), 400
+
+        if not is_valid_pdf(file):
+            return jsonify({'error': 'Invalid PDF file'}), 400
+
+        # Check file size
+        file.seek(0, os.SEEK_END)
+        size = file.tell()
+        file.seek(0)
+        if size > MAX_FILE_SIZE:
+            return jsonify({'error': f'File too large. Maximum size is {MAX_FILE_SIZE/1024/1024}MB'}), 400
+
+        filename = secure_filename(file.filename)
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        logger.info(f"Saving file to: {filepath}")
         
-        # Check if the file is a PDF
-        if file and file.filename.endswith('.pdf'):
-            # Read and extract text from the PDF
-            pdf_document = fitz.open(stream=file.read(), filetype="pdf")
-            text = ""
-            for page in pdf_document:
-                text += page.get_text()
-            
-            # Store the extracted text in the global variable
-            global global_pdf_text
-            global_pdf_text = text
-            
-            filename = secure_filename(file.filename)
-            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            logger.info(f"Saving file to: {filepath}")
-            
-            # Ensure directory exists again just to be safe
-            os.makedirs(os.path.dirname(filepath), exist_ok=True)
-            
-            file.save(filepath)
-            logger.info(f"File saved successfully at: {filepath}")
-            
-            return jsonify({
-                'filename': file.filename,
-                'text_length': len(text)
-            })
-        else:
-            return jsonify({'error': 'Invalid file type. Please upload a PDF.'}), 400
-            
+        # Ensure directory exists again just to be safe
+        os.makedirs(os.path.dirname(filepath), exist_ok=True)
+        
+        file.save(filepath)
+        logger.info(f"File saved successfully at: {filepath}")
+        
+        # Read and extract text from the PDF
+        pdf_document = fitz.open(filepath)
+        text = ""
+        for page in pdf_document:
+            text += page.get_text()
+        
+        # Store the extracted text in the global variable
+        global global_pdf_text
+        global_pdf_text = text
+        
+        return jsonify({
+            'filename': file.filename,
+            'text_length': len(text)
+        })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 # Endpoint to handle chat requests
-@app.route('/chat', methods=['POST'])
+@app.route('/api/chat', methods=['POST'])
 def chat():
     """
     Handle chat requests.
@@ -231,7 +270,8 @@ def chat():
                     'messages': [
                         {'role': 'user', 'content': full_message}
                     ]
-                }
+                },
+                timeout=30
             )
             
             # Log the response status and headers for debugging
@@ -284,4 +324,4 @@ if __name__ == '__main__':
     if not os.getenv('OPENROUTER_API_KEY'):
         logger.warning("OPENROUTER_API_KEY is not set. Please configure it in your environment variables.")
     # Run the Flask app
-    app.run(debug=True)
+    app.run(host='0.0.0.0', port=5000)

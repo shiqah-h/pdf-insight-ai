@@ -1,78 +1,136 @@
-# PDF Analyzer AI
+# PDF Insight AI
 
-A web application that allows users to upload PDF documents and interact with them using various AI models through OpenRouter.
+A Flask-based web application that allows users to upload PDFs and interact with them using AI-powered analysis and chat functionality.
 
-## Features
+## Purpose of Each File
 
-- PDF document upload and text extraction
-- Interactive chat interface with AI models
-- Multiple AI model selection
-- Web search integration for enhanced responses
-- Clean and responsive user interface
+- `app.py`: Core application file containing:
+  - Flask server setup and routing
+  - PDF processing logic using PyMuPDF
+  - Chat functionality with OpenRouter API integration
+  - Web search capabilities using DuckDuckGo
+  - File upload handling and text extraction
 
-## Getting Started
+- `templates/index.html`: Frontend interface featuring:
+  - Modern dark/light theme support
+  - Responsive design with Tailwind CSS
+  - File drag-and-drop functionality
+  - Real-time chat interface
+  - Markdown rendering support
+
+- `requirements.txt`: Dependencies list:
+  - Flask 3.0.2: Web framework
+  - PyPDF2 3.0.1: PDF processing
+  - python-dotenv 1.0.0: Environment variable management
+  - requests 2.31.0: HTTP requests
+  - PyMuPDF 1.23.8: PDF text extraction
+
+- `uploads/`: Directory for storing uploaded PDF files (not tracked in git)
+
+## Process Flow
+
+```mermaid
+graph TD
+    A[User] -->|Upload PDF| B[Flask Server]
+    B -->|Extract Text| C[PyMuPDF]
+    C -->|Store Text| D[Global Variable]
+    A -->|Send Query| E[Chat Interface]
+    E -->|Process Query| F[OpenRouter API]
+    F -->|Optional| G[Web Search]
+    F -->|Generate Response| H[Display Response]
+    H -->|Show to| A
+```
+
+## Quick Start
 
 ### Prerequisites
+- Python 3.8+
+- OpenRouter API key
 
-- Python 3.8 or higher
-- Pip package manager
-
-### Installation
-
-1. Clone the repository:
+### Windows
 ```bash
-git clone https://github.com/yourusername/pdf-analyzer-ai.git
+# Clone repository
+git clone [repository-url]
 cd pdf-analyzer-ai
-```
 
-2. Install dependencies:
-```bash
+# Create virtual environment
+python -m venv venv
+.\venv\Scripts\activate
+
+# Install dependencies
 pip install -r requirements.txt
+
+# Set environment variables
+set OPENROUTER_API_KEY=your_api_key
+
+# Run application
+python app.py
 ```
 
-3. Create a `.env` file and add your OpenRouter API key:
-```
-OPENROUTER_API_KEY=your_api_key_here
-```
-
-### Running the Application
-
+### Linux/Ubuntu
 ```bash
-flask run
+# Clone repository
+git clone [repository-url]
+cd pdf-analyzer-ai
+
+# Create virtual environment
+python3 -m venv venv
+source venv/bin/activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Set environment variables
+export OPENROUTER_API_KEY=your_api_key
+
+# Run application
+python app.py
 ```
 
-Visit `http://localhost:5000` in your web browser.
+## Security Features
 
-## Project Structure
+The application implements several security measures:
 
-```
-pdf-analyzer-ai/
-├── app.py               # Main application file
-├── requirements.txt     # Python dependencies
-├── templates/           # HTML templates
-│   └── index.html
-├── static/              # Static files (CSS, JS)
-├── uploads/             # Temporary storage for uploaded PDFs
-├── README.md            # This documentation
-└── .gitignore           # Files to ignore in version control
-```
+1. **Input Validation**
+   - PDF file type validation using magic numbers
+   - File size limits (10MB max)
+   - Secure filename handling
+   - Only allows PDF file extensions
 
-## Contributing
+2. **CORS Protection**
+   - Restricted to localhost:5000
+   - Limited HTTP methods (GET, POST)
+   - Controlled headers
 
-Contributions are welcome! Please follow these steps:
+3. **Security Headers**
+   - Content Security Policy (CSP)
+   - X-Content-Type-Options
+   - X-Frame-Options
+   - X-XSS-Protection
 
-1. Fork the repository
-2. Create a new branch (`git checkout -b feature/YourFeatureName`)
-3. Commit your changes (`git commit -m 'Add some feature'`)
-4. Push to the branch (`git push origin feature/YourFeatureName`)
-5. Open a pull request
+4. **Environment Security**
+   - API keys stored in .env file
+   - Uploads directory gitignored
+   - Dependencies regularly updated for security patches
 
-## License
+## Data Privacy Disclaimer
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+**Important**: This application processes PDF documents using AI services. Please note:
 
-## Acknowledgments
+1. PDF text content is extracted locally but sent to OpenRouter API for analysis
+2. When web search is enabled, queries are sent to DuckDuckGo
+3. No PDF content is permanently stored on external servers
+4. Uploaded PDFs are stored locally in the `uploads` directory
+5. Consider data sensitivity before uploading confidential documents
 
-- OpenRouter for providing access to multiple AI models
-- Flask for the web framework
-- PyMuPDF for PDF text extraction
+## Additional Information
+
+- Supports multiple AI models through OpenRouter:
+  - DeepSeek R1
+  - Gemini Flash
+  - Gemini Pro
+  - DeepSeek R1 Distill
+- Maximum file size: 16MB
+- Supports PDF text extraction and analysis
+- Real-time chat interface with markdown support
+- Optional web search integration for enhanced responses
